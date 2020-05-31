@@ -1,0 +1,24 @@
+<script>
+  import mpx, { createApp } from '@mpxjs/core'
+  import apiProxy from '@mpxjs/api-proxy'
+
+  mpx.use(apiProxy, { usePromise: true })
+  createApp({
+    onLaunch () {
+    }
+  })
+</script>
+
+<script type="application/json">
+  {
+    "pages": [
+      "./pages/index/index"
+    ],
+    "window": {
+      "backgroundTextStyle": "light",
+      "navigationBarBackgroundColor": "#409EFF",
+      "navigationBarTitleText": "mpxday",
+      "navigationBarTextStyle": "white"
+    }
+  }
+</script>

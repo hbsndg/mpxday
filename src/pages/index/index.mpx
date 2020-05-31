@@ -1,0 +1,818 @@
+<template>
+  <view id="app" class="app">
+    <view class="page-wrapper">
+      <!--header begin-->
+      <view class="page-header c-container">
+
+        <view class="page-header-info">
+          <view>
+            <view class="city-picker-toggle" bindtap="showCityList">
+              <text class="city-name">{{cityName}}</text>
+              <text class="aw-weather-update"> 更新于 <text>{{updataTime}}</text></text>
+            </view>
+          </view>
+          <view class="mpxday-date">
+            <text class="" >{{gDate + ' '+ncWeek}}</text>
+            <text class="aw-weather-lunar">{{nDate}}</text>
+          </view>
+          <view class="aw-weather-date">
+            <text>{{gzDate}}</text>
+          </view>
+        </view>
+      </view>
+      <!--header end-->
+
+      <view class="page-content c-container">
+      <!--today begin-->
+        <view class="jumbotron">
+          <view class="aw-weather-head">
+            <view class="aw-weather-maininfo">
+              <view class="temp-line">
+                <view class="aw-weather-currentTemp">
+                  <text class="aw-current-temp">{{animatedNumber}}</text>
+                  <text class="aw-weather-current-unit">℃</text>
+                </view>
+                <text class="aw-weather-animate-icon">
+			            	<text wx:class="{{classType}}"></text>
+                </text>
+                <text class="aw-weather-currentWeather">{{weatherType}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      <!--today end-->
+      <!--otherday begin--->
+        <view class="c-row-tile detail">
+          <view id="chart-6d" class="chart-6d chart aw-weather-chart" v-if="allWeatherInfo.length > 0">
+            <view class="canvas c-row">
+              <svg version="1.2" baseProfile="tiny">
+                <path class="path1" stroke="#e9e9e9" stroke-width="1" stroke-opacity="0.7" fill="none" :d="path1"></path>
+                <path class="path3" stroke="#fff" stroke-width="1" stroke-opacity="0.15" fill="none" :d="path3"></path>
+                <circle :cx="allWeatherInfo[1].x" :cy="allWeatherInfo[1].yh" r="2.5" fill="#fff"></circle>
+                <path class="path2" stroke="#e9e9e9" stroke-width="1" stroke-opacity="0.7" fill="none" :d="path2"></path>
+                <path class="path4" stroke="#fff" stroke-width="1" stroke-opacity="0.15" fill="none" :d="path4"></path>
+                <circle :cx="allWeatherInfo[1].x" :cy="allWeatherInfo[1].yl" r="2.5" fill="#fff"></circle>
+                <path class="path5" stroke-dasharray="4,4" stroke="#fff" stroke-width="1" fill="none" :d="path5" />
+              </svg>
+              <view class="c-span2 weather-bar"
+                    wx:for="{{allWeatherInfo}}" wx:for-index="index" wx:for-item="value" wx:key="x"
+                    wx:class="{{ {active:current == index} }}"
+                    >
+                <view class="content">
+                  <view class="title c-gap-bottom" wx:class="{{ {dim:index == 0} }}">
+                    <view class="value">{{value.date}}</view>
+                  </view>
+                  <view class="aw-weather-canvas-area">
+                    <view class="pillar">
+                      <view class="pillar-max" wx:style="{{ {top: calculateTxtHTop(value.yh, index)} }}"
+                            wx:class="{{ {dim:index == 0} }}">{{value.daytemp+'℃'}}</view>
+                      <view class="pillar-min" wx:style="{{ {top:calculateTxtLTop(value.yl)} }}"
+                            wx:class="{{ {dim:index == 0} }}">{{value.nighttemp+'℃'}}</view></view>
+                  </view>
+                  <view class="c-gap-top-large wind" wx:class="{{ {dim:index == 0} }}">
+                    <view>{{value.daywind}}</view>
+                  </view>
+                </view>
+              </view>
+            </view>
+
+          </view>
+        </view>
+      <!--otherday end-->
+        <view class="footer-author">
+          <view>
+            ©hbsndg
+          </view>
+          <view>
+             https://github.com/hbsndg/mpxday</view>
+          </view>
+      </view>
+    </view>
+  <view>
+</view>
+  </view>
+</template>
+
+<script>
+  import { createPage } from '@mpxjs/core';
+  import weather from '../../api/weather';
+  import * as com from '../../utils/common';
+  import {weatherType2IconSm, weatherType2Icon} from "../../utils/weathertype2icon";
+  import citydata from "../../assets/json/citydata.json"
+  import {formatDate,extend,quickSort,getSVGPathByCoordinate,addData,queryData} from "../../utils/common";
+  import {calendar} from "../../utils/calendar";
+  import compng from "../../assets/images/component.png";
+  import TWEEN from "tween.js";
+
+  const refreshTime = 3600 * 1000;
+  // 曲线显示区域
+  const HEIGHT = 173.50;
+  // 最高温断点
+  const BREAKPOINT_H = 77.20;
+  // 最低温断点
+  const BREAKPOINT_L = 152.00;
+  // 最高温、最低温Y轴偏移
+  const OFFSET_H_Y = 60;
+  const OFFSET_L_Y = 60;
+
+  createPage({
+    data: {
+      cityName: '',
+      currentWeather: {
+        city: ''
+      },
+      cityWeather: {
+        city: ''
+      },
+      colorLv: '',
+      updataTime: '',
+      nDate: '',
+      gDate: '',
+      gzDate: '',
+      ncWeek: '',
+      compngUrl: compng,
+      show: false,
+      number: 0,
+      currentTemp: 0,
+      animatedNumber: 0,
+      current: 0,     // 6天天气预测当前选择标志位
+      path1: '',      // 曲线1
+      path2: '',      // 曲线2
+      path3: '',      // 曲线3
+      path4: '',      // 曲线4
+      path5: '',      // 虚线
+      isFah: false,   // 华氏温度
+      screenWidth: wx.getSystemInfoSync().screenWidth
+    },
+    computed: {
+      // 今天的最高温和最低温
+      temperatureScope() {
+        if (!this.cityWeather.forecast) return;
+        // 提取数字
+        let highTmp = this.cityWeather.forecast[0].high.match(/[1-9](?:\d{0,2})(?:,\d{3})*|0/)[0];
+        let lowTmp = this.cityWeather.forecast[0].low.match(/[1-9](?:\d{0,2})(?:,\d{3})*|0/)[0];
+
+        if (this.isFah) {
+          highTmp = highTmp * 9 / 5 + 32;
+          lowTmp = lowTmp * 9 / 5 + 32;
+          return `${lowTmp}~${highTmp}°F`;
+        }
+        return `${lowTmp}~${highTmp}°C`;
+      },
+      // 根据天气类型设置天气图标
+      classType() {
+        let foreData = this.currentWeather;
+        if (!foreData){
+          return;
+        }
+        return weatherType2Icon(this.cityWeather.weather);
+      },
+      // 天气类型
+      weatherType() {
+        if (!this.cityWeather.forecast) return;
+
+        return this.cityWeather.forecast[0].type;
+      },
+      // 风向风力
+      windInfo() {
+        if (!this.cityWeather.forecast){
+          return false;
+        }
+        let obj = {};
+        obj.lv = this.cityWeather.forecast[0].fengli;
+        obj.dir = this.cityWeather.forecast[0].fengxiang;
+
+        return obj;
+      },
+      allWeatherInfo() {
+        if (!this.cityWeather.casts) return [] ;
+        // 拷贝对象修改
+        let yesterday = [], otherdays = [];
+        yesterday[0] = extend({}, this.cityWeather.yesterday),
+          this.cityWeather.casts.forEach((item) => {
+            otherdays.push(extend({}, item));
+          });
+
+        // 重命名键名
+        Object.defineProperty(yesterday[0], 'fengli', {value: yesterday[0].daypower});
+        Object.defineProperty(yesterday[0], 'fengxiang', {value: yesterday[0].daywind});
+
+        delete yesterday[0].daypower;
+        delete yesterday[0].daywind;
+
+        // 合拼数据
+        let newO  = otherdays,
+
+          // 根据屏幕尺寸变化设置svg宽度
+          offsetX = this.screenWidth / 6 / 2,
+          // 两条曲线路径
+          path1 = [],path2 = [];
+
+        let yH = [], yL = [];
+
+        // 提取数字
+        for (let i = 0; i < newO.length; i++) {
+          yH[i] = parseInt(newO[i].daytemp);
+          yL[i] = parseInt(newO[i].nighttemp);
+        }
+        // 根据最高温、最低温求相应温度显示坐标系数
+        let allTemp = quickSort(yH.concat(yL)),
+          max = allTemp[allTemp.length-1],
+          min = allTemp[0],
+          ratioH = Math.abs((BREAKPOINT_H + OFFSET_H_Y - HEIGHT)/ -max),
+          ratioL = Math.abs((BREAKPOINT_L + OFFSET_L_Y - HEIGHT)/ -min);
+        // 被除数为0出现无穷大情况
+        if (ratioH == '-Infinity' || ratioH == 'Infinity') ratioH = 0;
+        if (ratioL == '-Infinity' || ratioL == 'Infinity') ratioL = 0;
+
+        // 系数过大显示不正常情况下，统一使用同一系数,保证最高温或最低温位置置于顶部、底部
+        let offsetHY = OFFSET_H_Y, offsetLY = OFFSET_L_Y;
+
+        if ((HEIGHT - max * ratioH - OFFSET_H_Y).toFixed(2) != BREAKPOINT_H) { // 最高温曲线显示不正常取最低温曲线系数
+          ratioH = ratioL;
+          offsetHY = HEIGHT - BREAKPOINT_H - max * ratioH;
+        }
+        if ((HEIGHT - min * ratioL - OFFSET_L_Y).toFixed(2) != BREAKPOINT_L) { // 最低温曲线显示不正常取最高温曲线系数
+          ratioL = ratioH;
+          offsetLY = HEIGHT - BREAKPOINT_L - min * ratioL;
+        }
+        // 采用跟最高温一样的系数，也可以不用
+        ratioL =  ratioH;
+
+        // 计算，并将计算结果放入源数组对象中
+        for (let i = 0, left = offsetX; i < newO.length; i++) {
+          path1[i] = {};path2[i] = {};
+
+          // 日期转换
+          newO[i].date = this.weekToName(newO[i].week);
+
+          newO[i].daytemp = yH[i];
+          newO[i].nighttemp  = yL[i];
+
+          // 根据温度换算坐标
+          Object.defineProperty(newO[i], 'x', {value: left});
+          path1[i].x = left;
+          path2[i].x = left;
+
+          Object.defineProperty(newO[i], 'yh', {value: HEIGHT - newO[i].daytemp * ratioH - offsetHY});
+          path1[i].y = newO[i].yh;
+
+          Object.defineProperty(newO[i], 'yl', {value: HEIGHT - newO[i].nighttemp  * ratioL - offsetLY});
+          path2[i].y = newO[i].yl;
+
+          left += offsetX*2;
+        }
+
+        // 绘制四条三次贝塞尔曲线
+        this.path1 = getSVGPathByCoordinate(path1.slice(1));
+        this.path2 = getSVGPathByCoordinate(path2.slice(1));
+        this.path3 = getSVGPathByCoordinate(path1.slice(0, 2));
+        this.path4 = getSVGPathByCoordinate(path2.slice(0, 2));
+        // 虚线
+        this.path5 = `M${path1[1].x},${path1[1].y} ${path1[1].x},${path2[1].y}`;
+        return newO;
+      }
+    },
+    watch: {
+      'cityWeather' () {
+        this.current = 0;
+      },
+      currentTemp(newValue, oldValue) {
+        var vm = this;
+        function animate (time) {
+          requestAnimationFrame(animate);
+          TWEEN.update(time);
+        }
+        new TWEEN.Tween({ tweeningNumber: oldValue })
+          .easing(TWEEN.Easing.Quadratic.Out)
+          .to({ tweeningNumber: newValue }, 1000)
+          .onUpdate(function () {
+            vm.animatedNumber = this.tweeningNumber.toFixed(0)
+          })
+          .start();
+        animate();
+      }
+    },
+    methods: {
+      onPullDownRefresh() {
+        this.getWeatherInfoData();
+        this.setHeaderData();
+      },
+      getWeatherInfoData(cityName) {
+        const that = this;
+        var queryCity = com.queryData('currentCity');
+        if (queryCity) {
+          if (!!cityName && queryCity.name !== cityName) {
+            com.addData('currentCity', {name: cityName});
+          }
+          this.getWeatherInfo(com.queryData('currentCity').name)
+        }else{
+          this.getWeatherInfo();
+        }
+      },
+      weekToName(weekVal) {
+        var reText = "";
+        switch (weekVal) {
+          case "1":
+            reText="周一";
+            break;
+          case "2":
+            reText="周二";
+            break;
+          case "3":
+            reText="周三";
+            break;
+          case "4":
+            reText="周四";
+            break;
+          case "5":
+            reText="周五";
+            break;
+          case "6":
+            reText="周六";
+            break;
+          case "7":
+            reText="周日";
+            break;
+
+        }
+        return reText;
+      },
+      getWeatherInfo(cityName){
+        const that = this;
+        weather.getCurrentPositionByIP().then(position => {
+          let citys = citydata;
+          let cityNameByIp = '';
+          let adcode = position.adcode;
+          if(cityName !== undefined && cityName !== '' && cityName !== null) {
+            cityNameByIp = cityName;
+          }else {
+            cityNameByIp = position.city;
+          }
+          weather.getWeatherByCityCode(adcode, 'base').then(data => {
+            let nowData = data.lives[0]
+            that.animatedNumber = nowData.temperature;
+            that.cityName = nowData.city
+            that.currentWeather = nowData;
+          });
+          weather.getWeatherByCityCode(adcode, 'all').then(data => {
+            that.cityWeather = data.forecasts[0];
+          });
+          /*
+          citys.zone.forEach(province => {
+            province.zone.forEach(city => {
+              city.zone.forEach(area => {
+                if (cityNameByIp.includes(area.name)) {
+                  // 根据城市代码获取天气信息
+                  weather.getWeatherByCityCode(area.code).then(data => {
+                    that.cityWeather = data.data;
+                  });
+                }
+              });
+            });
+          })*/
+        })
+
+      },
+      setHeaderData() {
+        var AQILvIdx = 0;
+        var date = new Date(Date.parse(new Date()));
+        this.updataTime = formatDate(date, 'yyyy-MM-dd|hh:mm').split('|')[1];
+        var lunar = calendar.solar2lunar();
+        this.gDate = `${lunar.lYear}-${lunar.cMonth}-${lunar.cDay}(${lunar.astro})`;
+        this.ncWeek = `${lunar.ncWeek}`;
+        this.nDate = `${lunar.IMonthCn}${lunar.IDayCn}`;
+        this.gzDate = `${lunar.gzYear}年${lunar.gzMonth}月${lunar.gzDay}日`;
+      },
+      getChgData() {
+        var dataInfo = this.windInfo.lv.replace(/^\<!\[CDATA\[/g,'').replace(/\]\]\>/g,'');
+        return dataInfo;
+      },
+      showCityList() {
+
+      },
+      rippleAction(e, index) {
+        this.$nextTick(() => {
+          ripple(e.currentTarget, e);
+        });
+        this.current = index;
+        // 事件触发
+        this.$root.eventHub.$emit('aw.switch.daydetail', index);
+      },
+      // 日期转周一...周日
+      date2Week(val,idx) {
+        return idx==0 ? '\u6628\u5929' : idx==1 ? '\u4eca\u5929' : idx==2 ? '\u660e\u5929' : '\u5468' + (val.date.split('\u65e5')[1].split('\u671f')[1] === '\u5929' ? '\u65e5' : val.date.split('\u65e5')[1].split('\u671f')[1]);
+      },
+      weatherIconSm(type) {
+        var iconType =  weatherType2IconSm(type);
+        return iconType;
+      },
+      calculateTxtHTop(top, index) {
+
+        return index == 1 ? top-22+'px' : top<BREAKPOINT_H ? top+2+'px' : top-22+'px';
+      },
+      calculateTxtLTop(top) {
+        return top>BREAKPOINT_L ? top-30+'px' : top-2+'px';
+      },
+      calcuFah(temp) {
+        return temp * 9 / 5 + 32;
+      },
+      getWindLevel(fengli) {
+        var wLevel = fengli.replace(/^\<!\[CDATA\[/g,'').replace(/\]\]\>/g,'');
+        return wLevel;
+      }
+
+    },
+    onLoad () {
+      this.getWeatherInfoData();
+      this.setHeaderData()
+      //定时刷新数据
+      setInterval(this.getWeatherInfoData, refreshTime);
+    }
+  })
+</script>
+
+<style lang="less">
+  @import "../../assets/less/base";
+  @shadow-1_5: 1.5px 1.5px 0 rgba(0,0,0,.23);
+  @shadow-1: 1px 1px 0 rgba(0,0,0,.23);
+  @duration: .3s;
+  .app{
+    width: 100%;
+    height: 100%;
+    .page-wrapper{
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      .page-content{
+        background-color: #409EFF;
+        background-image: -webkit-linear-gradient(top, #409EFF, #79bbff);
+        margin: 0;
+        min-height: 100%;
+        padding: 60px 10px 0 10px;
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+        box-sizing: border-box;
+      }
+    }
+    /*header less begin*/
+    .page-header {
+      margin: 0;
+      box-sizing: border-box;
+      padding: 10px 20px 20px 10px;
+      background-color: #409EFF;
+      color: #fff;
+      height: 60px;
+      position: fixed;
+      z-index: 11;
+      top: 0;
+      left: 0;
+      right: 0;
+      .aw-weather-pollution-area{
+        display: inline-block;
+        width: 100px;
+        text-align: center;
+        background: hsla(0,0%,100%,.08);
+        border-radius: 3px;
+        padding: 2px 0 6px;
+        font-size: 12px;
+        line-height: 21px;
+        color: #fff;
+      }
+      .aw-weather-pollution-color{
+        display: inline-block;
+        border-radius: 3px;
+        line-height: 21px;
+        font-size: 12px;
+        width: 100%;
+        padding: 12px 5px;
+        -webkit-transition: all 1.2s linear; /* For Safari 3.1 to 6.0 */
+        transition: all 1.2s linear;
+        text-shadow: 1px 1px 1px rgba(0,0,0,.6);
+        .aw-weather-poNum{
+          font-size: 13px;
+        }
+        .bounce-transition {
+
+        }
+        .bounce-enter-active, .bounce-leave-active {
+          transition: all 1s;
+        }
+        .bounce-enter, .bounce-leave-active {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+      }
+
+      .lv1{background-color: #50B847;}
+      .lv2{background-color: #F3EC18;}
+      .lv3{background-color: #F87F24;}
+      .lv4{background-color: #F4802B;}
+      .lv5{background-color: #81277E;}
+      .lv6{background-color: #7D1315;}
+      .page-header-info{
+        font-size:13px;
+      }
+      .comp-img{
+        width: 16px;
+        height: 16px;
+        margin: 0 10px 0 0;
+      }
+      .city-name{
+        font-size: 18px;
+        font-weight: bold;
+      }
+      .aw-weather-update{
+        color: hsla(0,0%,100%,.5);
+        text-shadow: 1px 1px 0 rgba(0,0,0,.3);
+        margin-left: 10px;
+      }
+
+      .mpxday-date{
+        text-shadow: 1px 1px 0 rgba(0,0,0,.23);
+      }
+      .aw-weather-date-small{
+        font-size: .13rem;
+      }
+      .aw-weather-changecity, .aw-weather-date{
+        text-shadow: 1px 1px 0 rgba(0,0,0,.23);
+      }
+      .home-city-name{
+        font-size: 0.2rem;
+      }
+    }
+    /*header less end*/
+
+    /*today less begin*/
+
+    .icon-position (@left: 68px, @top: -98px) {
+      left: @left;
+      top: @top;
+    }
+    .jumbotron{
+      color: #fff;
+      padding: 0 0 .08rem;
+      position: relative;
+      .aw-weather-maininfo{
+        // margin-top: .1rem;
+        position: relative;
+        .temp-line{
+          position: relative;
+          padding-top: 45px;
+          .aw-weather-currentTemp{
+            text-shadow: @shadow-1_5;
+            position: relative;
+            left: .02rem;
+            font-size: 13px;
+            bottom: .02rem;
+            .aw-current-temp{
+              font-size: 48px;
+              letter-spacing: .07rem;
+            }
+            .aw-weather-current-unit{
+              text-shadow: @shadow-1;
+              position: absolute;
+              top: 0;
+              font-weight: 100;
+            }
+          }
+          .aw-weather-currentWeather{
+            text-shadow: @shadow-1_5;
+            position: relative;
+            left: 1rem;
+            bottom: 40px;
+            font-size: 16px;
+            font-weight: lighter;
+          }
+          .aw-weather-animate-icon{
+            margin-left: 100px;
+            display: inline-block;
+            transform:scale(.6);
+            top: .1rem;
+            left: .95rem;
+            .sunny{
+              .icon-position(50px, -120px);
+            }
+            .cloudy{
+              .icon-position(40px, -98px);
+            }
+            .rainy{
+              .icon-position(40px, -98px);
+            }
+            .rainbow{
+              .icon-position(50px, -98px);
+            }
+            .starry{
+              .icon-position(40px, 0);
+            }
+            .stormy{
+              .icon-position(40px, -98px);
+            }
+            .snowy{
+              .icon-position(40px, -98px);
+            }
+            .cloudy2sunny{
+              .icon-position(18px, -110px);
+            }
+            .sandstorm{
+              .icon-position(40px, -98px);
+            }
+          }
+        }
+        .aw-temp-switch {
+          width: .65rem;
+          height: .22rem;
+          top: .08rem;
+          right: .12rem;
+          position: absolute;
+          margin: .1rem auto;
+          input {
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=0)";
+            filter: alpha(opacity=0);
+            -moz-opacity: 0;
+            opacity: 0;
+            z-index: 10;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+          }
+
+        }
+        .aw-weather-wind-info{
+          position: relative;
+          margin-left: .05rem;
+          text-shadow: @shadow-1;
+          margin-top: 0.2rem;
+          .aw-weather-wind {
+            margin-top: .06rem;
+            font-size: .18rem;
+            .aw-weather-temp-range{
+              font-size: .19rem;
+            }
+          }
+        }
+        .aw-weather-prompt{
+          margin-top: .1rem;
+          padding: .04rem .1rem;
+          border-radius: 3px;
+          background: hsla(0,0%,100%,.1);
+          overflow: hidden;
+          font-size: .1rem;
+          .aw-weather-prompt-text{
+            text-shadow: @shadow-1;
+          }
+        }
+        .aw-weather-abs{
+          position: relative;
+          margin-top: .15rem;
+          texr-shadow: 0 1px 0 rgba(0,0,0,.23);
+          .btn-24h-toggle{
+            display: inline-block;
+            padding: .04rem .1rem;
+            border-radius: 3px;
+            background: hsla(0,0%,100%,.1);
+            overflow: hidden;
+            position: relative;
+          }
+        }
+      }
+    }
+    /*today less end*/
+    /*detail begin*/
+    .detail{
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      .aw-forecast24h{
+        transition: opacity 0.7s;
+        &.fade-enter-active, &.fade-leave-active {
+          opacity: 1;
+        }
+        &.fade-enter, &.fade-leave-to{
+          opacity: 0;
+        }
+      }
+      .aw-weather-chart{
+        position: relative;
+        -webkit-tap-highlight-color: rgba(0,0,0,0);
+      }
+      .chart{
+        overflow: hidden;
+      }
+      .chart-6d {
+        .canvas{
+          position: relative;
+          padding: 0!important;
+          // 动画
+          .path1,.path2,.path3,.path4{
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: dash 10s linear 0s infinite;
+
+          }
+          @-webkit-keyframes dash {
+            to {
+              stroke-dashoffset: 0;
+            }
+          }
+          @keyframes dash {
+            to {
+              stroke-dashoffset: 0;
+            }
+          }
+        }
+        .c-row{
+          margin-left: 0;
+          margin-right: 0;
+          svg{
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+          }
+          .weather-bar{
+            padding: .11rem 0;
+            overflow: hidden;
+            position: relative;
+            > .content{
+              border-right: 1px solid hsla(0,0%,100%, .12);
+              .title{
+                padding: 0!important;
+                text-align: center;
+                color: #fff;
+                .day{
+                  display: inline-block;
+                  line-height: 22px;
+                }
+                .weather-icons{
+                  font-size: .22rem;
+                  &.icon-Sun{
+                    color: #ffd905;
+                  }
+                }
+              }
+              .dim{
+                color: hsla(0,0%,100%, .5);
+              }
+              .aw-weather-canvas-area{
+                // position: relative;
+                height: 100px;
+                .pillar{
+                  width: 100%;
+                  // position: absolute;
+                  text-align: center;
+                  color: #fff;
+
+                  .pillar-max{
+                    margin-bottom: 6px;
+                  }
+                  .pillar-min{
+                    margin-top: 6px;
+                  }
+                }
+              }
+              .wind{
+                color: #fff;
+                font-size: 12px;
+                text-align: center;
+                line-height: 16px;
+                padding: 0!important;
+              }
+            }
+            &.active {
+              background-image: linear-gradient(180deg,transparent,rgba(0,0,0,.1))
+            }
+          }
+        }
+      }
+    }
+    /*detail end*/
+    .footer-author{
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 12px;
+      margin:0 auto;
+      color: #fff;
+    }
+  }
+</style>
+
+
+<script type="application/json">
+  {
+    "enablePullDownRefresh": false,
+    "usingComponents": {
+    }
+  }
+</script>
