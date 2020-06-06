@@ -36,7 +36,7 @@ npm run watch
 
 运行后效果
 
-![运行图片](http://i2.tiimg.com/720116/1e6ed09c8911b969.png)
+![运行图片](http://i1.fuimg.com/720116/2ae4fd5c3821055a.png)
 
 
 **感谢您的咖啡**
