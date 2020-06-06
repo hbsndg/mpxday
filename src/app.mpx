@@ -18,7 +18,8 @@
       "backgroundTextStyle": "light",
       "navigationBarBackgroundColor": "#409EFF",
       "navigationBarTitleText": "mpxday",
-      "navigationBarTextStyle": "white"
+      "navigationBarTextStyle": "white",
+      "backgroundColor": "#409EFF"
     }
   }
 </script>

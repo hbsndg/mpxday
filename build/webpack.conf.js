@@ -36,6 +36,12 @@ const webpackConf = {
         loader: MpxWebpackPlugin.urlLoader({
           name: 'images/[name][hash].[ext]'
         })
+      },
+      {
+        test: /\.(woff2?|eot|ttf|otf)(\?.*)?$/,
+        loader: MpxWebpackPlugin.urlLoader({
+          name: 'fonts/[name][hash].[ext]'
+        })
       }
     ]
   },

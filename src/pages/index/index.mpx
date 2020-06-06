@@ -1,28 +1,31 @@
 <template>
   <view id="app" class="app">
     <view class="page-wrapper">
-      <!--header begin-->
-      <view class="page-header c-container">
+      <view class="page-content c-container">
+        <!--header begin-->
+        <view class="page-header c-container">
 
-        <view class="page-header-info">
-          <view>
-            <view class="city-picker-toggle" bindtap="showCityList">
-              <text class="city-name">{{cityName}}</text>
-              <text class="aw-weather-update"> 更新于 <text>{{updataTime}}</text></text>
+          <view class="page-header-info">
+            <view>
+
+              <view>
+                <text class="city-name">{{cityName}}</text>
+                <text class="aw-weather-update"> 更新于 <text>{{updataTime}}</text></text>
+              </view>
+              <view class="city-select-out" bindtap="showCityList">
+                <image src="{{compngUrl}}" class="city-select-icon"></image>
+              </view>
+            </view>
+            <view class="mpxday-date">
+              <text class="" >{{gDate + ' '+ncWeek}}</text>
+              <text class="aw-weather-lunar">{{nDate}}</text>
+            </view>
+            <view class="aw-weather-date">
+              <text>{{gzDate}}</text>
             </view>
           </view>
-          <view class="mpxday-date">
-            <text class="" >{{gDate + ' '+ncWeek}}</text>
-            <text class="aw-weather-lunar">{{nDate}}</text>
-          </view>
-          <view class="aw-weather-date">
-            <text>{{gzDate}}</text>
-          </view>
         </view>
-      </view>
-      <!--header end-->
-
-      <view class="page-content c-container">
+        <!--header end-->
       <!--today begin-->
         <view class="jumbotron">
           <view class="aw-weather-head">
@@ -35,7 +38,7 @@
                 <text class="aw-weather-animate-icon">
 			            	<text wx:class="{{classType}}"></text>
                 </text>
-                <text class="aw-weather-currentWeather">{{weatherType}}</text>
+                <text class="aw-weather-currentWeather">{{currentWeather.weather}}</text>
               </view>
             </view>
           </view>
@@ -61,16 +64,20 @@
                 <view class="content">
                   <view class="title c-gap-bottom" wx:class="{{ {dim:index == 0} }}">
                     <view class="value">{{value.date}}</view>
+                    <view class="weather-icons" wx:class="{{value.iconType}}"></view>
                   </view>
                   <view class="aw-weather-canvas-area">
                     <view class="pillar">
                       <view class="pillar-max" wx:style="{{ {top: calculateTxtHTop(value.yh, index)} }}"
                             wx:class="{{ {dim:index == 0} }}">{{value.daytemp+'℃'}}</view>
+                      <view>'</view>
+                      <view>'</view>
                       <view class="pillar-min" wx:style="{{ {top:calculateTxtLTop(value.yl)} }}"
                             wx:class="{{ {dim:index == 0} }}">{{value.nighttemp+'℃'}}</view></view>
                   </view>
                   <view class="c-gap-top-large wind" wx:class="{{ {dim:index == 0} }}">
-                    <view>{{value.daywind}}</view>
+                    <view>{{value.daywind}}风{{value.daypower}}级</view>
+                    <view></view>
                   </view>
                 </view>
               </view>
@@ -119,7 +126,8 @@
     data: {
       cityName: '',
       currentWeather: {
-        city: ''
+        city: '',
+        weather: ''
       },
       cityWeather: {
         city: ''
@@ -169,9 +177,10 @@
       },
       // 天气类型
       weatherType() {
-        if (!this.cityWeather.forecast) return;
+        console.log(this.cityWeather);
+        if (!this.cityWeather.casts) return;
 
-        return this.cityWeather.forecast[0].type;
+        return this.cityWeather.casts[0].type;
       },
       // 风向风力
       windInfo() {
@@ -214,6 +223,7 @@
         for (let i = 0; i < newO.length; i++) {
           yH[i] = parseInt(newO[i].daytemp);
           yL[i] = parseInt(newO[i].nighttemp);
+          newO[i]['iconType'] = this.weatherIconSm(newO[i].dayweather);
         }
         // 根据最高温、最低温求相应温度显示坐标系数
         let allTemp = quickSort(yH.concat(yL)),
@@ -270,6 +280,7 @@
         this.path4 = getSVGPathByCoordinate(path2.slice(0, 2));
         // 虚线
         this.path5 = `M${path1[1].x},${path1[1].y} ${path1[1].x},${path2[1].y}`;
+        console.log(newO);
         return newO;
       }
     },
@@ -349,6 +360,7 @@
           }else {
             cityNameByIp = position.city;
           }
+          that.cityName = cityNameByIp;
           weather.getWeatherByCityCode(adcode, 'base').then(data => {
             let nowData = data.lives[0]
             that.animatedNumber = nowData.temperature;
@@ -358,6 +370,7 @@
           weather.getWeatherByCityCode(adcode, 'all').then(data => {
             that.cityWeather = data.forecasts[0];
           });
+
           /*
           citys.zone.forEach(province => {
             province.zone.forEach(city => {
@@ -404,8 +417,8 @@
         return idx==0 ? '\u6628\u5929' : idx==1 ? '\u4eca\u5929' : idx==2 ? '\u660e\u5929' : '\u5468' + (val.date.split('\u65e5')[1].split('\u671f')[1] === '\u5929' ? '\u65e5' : val.date.split('\u65e5')[1].split('\u671f')[1]);
       },
       weatherIconSm(type) {
-        var iconType =  weatherType2IconSm(type);
-        return iconType;
+        var iconVal = weatherType2IconSm(type);
+        return iconVal;
       },
       calculateTxtHTop(top, index) {
 
@@ -434,6 +447,8 @@
 
 <style lang="less">
   @import "../../assets/less/base";
+  @import "../../assets/less/wticon-sm";
+
   @shadow-1_5: 1.5px 1.5px 0 rgba(0,0,0,.23);
   @shadow-1: 1px 1px 0 rgba(0,0,0,.23);
   @duration: .3s;
@@ -449,7 +464,7 @@
         background-image: -webkit-linear-gradient(top, #409EFF, #79bbff);
         margin: 0;
         min-height: 100%;
-        padding: 60px 10px 0 10px;
+        padding: 10px 10px 0 10px;
         display: flex;
         flex-direction: column;
         min-height: 100%;
@@ -464,7 +479,7 @@
       background-color: #409EFF;
       color: #fff;
       height: 60px;
-      position: fixed;
+      position: relative;
       z-index: 11;
       top: 0;
       left: 0;
@@ -552,7 +567,7 @@
     }
     .jumbotron{
       color: #fff;
-      padding: 0 0 .08rem;
+      padding: 20px 0 0 0;
       position: relative;
       .aw-weather-maininfo{
         // margin-top: .1rem;
@@ -563,12 +578,13 @@
           .aw-weather-currentTemp{
             text-shadow: @shadow-1_5;
             position: relative;
-            left: .02rem;
+            left: 10px;
             font-size: 13px;
-            bottom: .02rem;
+            bottom: 0;
             .aw-current-temp{
               font-size: 48px;
               letter-spacing: .07rem;
+              width: 60px;
             }
             .aw-weather-current-unit{
               text-shadow: @shadow-1;
@@ -580,9 +596,9 @@
           .aw-weather-currentWeather{
             text-shadow: @shadow-1_5;
             position: relative;
-            left: 1rem;
+            left: 100px;
             bottom: 40px;
-            font-size: 16px;
+            font-size: 20px;
             font-weight: lighter;
           }
           .aw-weather-animate-icon{
@@ -753,7 +769,7 @@
                   line-height: 22px;
                 }
                 .weather-icons{
-                  font-size: .22rem;
+                  font-size: 18px;
                   &.icon-Sun{
                     color: #ffd905;
                   }
@@ -794,9 +810,20 @@
         }
       }
     }
+
+    .city-select-out{
+      right: 5px;
+      top: 12px;
+      position: absolute;
+    }
+    .city-select-icon{
+      width: 16px;
+      height: 16px;
+    }
     /*detail end*/
     .footer-author{
       bottom: 0;
+      position: relative;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -811,7 +838,7 @@
 
 <script type="application/json">
   {
-    "enablePullDownRefresh": false,
+    "enablePullDownRefresh": true,
     "usingComponents": {
     }
   }
