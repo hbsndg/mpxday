@@ -1,10 +1,6 @@
-*.java linguist-language=js
-*.md linguist-language=js
-*.yml linguist-language=js
-*.html linguist-language=js
-*.js linguist-language=js
-*.xml linguist-language=js
-*.css linguist-language=js
-*.sql linguist-language=js
-*.uml linguist-language=js
-*.cmd linguist-language=js
+*.md linguist-language=javascript
+*.html linguist-language=javascript
+*.js linguist-language=javascript
+*.xml linguist-language=javascript
+*.css linguist-language=javascript
+*.mpx linguist-language=javascript
